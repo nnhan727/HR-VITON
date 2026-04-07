@@ -40,7 +40,7 @@ def Evaluation(opt, pred_list, gt_list):
 
     model = models.PerceptualLoss(model='net-lin',net='alex',use_gpu=True)
     model.eval()
-    inception_model = inception_v3(pretrained=True, transform_input=False).type(torch.cuda.FloatTensor)
+    inception_model = inception_v3(weights=Inception_V3_Weights.IMAGENET1K_V1, transform_input=False).type(torch.cuda.FloatTensor)
     inception_model.eval()
 
     avg_ssim, avg_mse, avg_distance = 0.0, 0.0, 0.0
@@ -73,7 +73,7 @@ def Evaluation(opt, pred_list, gt_list):
             avg_distance += lpips_list[-1][1]
             # Calculate Inception model prediction
             pred_img_IS = T3(pred_img).unsqueeze(0).cuda()
-            preds[i] = F.softmax(inception_model(pred_img_IS)).data.cpu().numpy()
+            preds[i] = F.softmax(inception_model(pred_img_IS), dim=1).data.cpu().numpy()
 
             gt_img_MSE = T1(gt_img).unsqueeze(0).cuda()
             pred_img_MSE = T1(pred_img).unsqueeze(0).cuda()

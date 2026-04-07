@@ -78,7 +78,7 @@ def get_const(opt, train_loader, tocg, D, length):
         # input1
         c_paired = inputs['cloth']['paired'].cuda()
         cm_paired = inputs['cloth_mask']['paired'].cuda()
-        cm_paired = torch.FloatTensor((cm_paired.detach().cpu().numpy() > 0.5).astype(np.float)).cuda()
+        cm_paired = torch.FloatTensor((cm_paired.detach().cpu().numpy() > 0.5).astype(np.float32)).cuda()
         # input2
         parse_agnostic = inputs['parse_agnostic'].cuda()
         densepose = inputs['densepose'].cuda()
@@ -98,7 +98,7 @@ def get_const(opt, train_loader, tocg, D, length):
             flow_list, fake_segmap, warped_cloth_paired, warped_clothmask_paired = tocg(input1, input2)
             if opt.clothmask_composition != 'no_composition':
                 if opt.clothmask_composition == 'detach':
-                    warped_cm_onehot = torch.FloatTensor((warped_clothmask_paired.detach().cpu().numpy() > 0.5).astype(np.float)).cuda()
+                    warped_cm_onehot = torch.FloatTensor((warped_clothmask_paired.detach().cpu().numpy() > 0.5).astype(np.float32)).cuda()
                     cloth_mask = torch.ones_like(fake_segmap.detach())
                     cloth_mask[:, 3:4, :, :] = warped_cm_onehot
                     fake_segmap = fake_segmap * cloth_mask

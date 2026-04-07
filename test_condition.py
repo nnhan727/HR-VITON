@@ -81,7 +81,7 @@ def test(opt, test_loader, board, tocg, D=None):
         # input1
         c_paired = inputs['cloth'][opt.datasetting].cuda()
         cm_paired = inputs['cloth_mask'][opt.datasetting].cuda()
-        cm_paired = torch.FloatTensor((cm_paired.detach().cpu().numpy() > 0.5).astype(np.float)).cuda()
+        cm_paired = torch.FloatTensor((cm_paired.detach().cpu().numpy() > 0.5).astype(np.float32)).cuda()
         # input2
         parse_agnostic = inputs['parse_agnostic'].cuda()
         densepose = inputs['densepose'].cuda()
@@ -103,7 +103,7 @@ def test(opt, test_loader, board, tocg, D=None):
             flow_list, fake_segmap, warped_cloth_paired, warped_clothmask_paired = tocg(input1, input2)
             
             # warped cloth mask one hot 
-            warped_cm_onehot = torch.FloatTensor((warped_clothmask_paired.detach().cpu().numpy() > 0.5).astype(np.float)).cuda()
+            warped_cm_onehot = torch.FloatTensor((warped_clothmask_paired.detach().cpu().numpy() > 0.5).astype(np.float32)).cuda()
             
             if opt.clothmask_composition != 'no_composition':
                 if opt.clothmask_composition == 'detach':
