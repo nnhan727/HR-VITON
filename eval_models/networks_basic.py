@@ -47,7 +47,7 @@ class PNetLin(nn.Module):
             self.chns = [64,128,256,384,384,512,512]
         self.L = len(self.chns)
 
-        self.net = net_type(weights=not self.pnet_rand, requires_grad=self.pnet_tune)
+        self.net = net_type(pretrained=not self.pnet_rand, requires_grad=self.pnet_tune)
 
         if(lpips):
             self.lin0 = NetLinLayer(self.chns[0], use_dropout=use_dropout)
