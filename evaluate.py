@@ -40,7 +40,7 @@ def Evaluation(opt, pred_list, gt_list):
 
     model = models.PerceptualLoss(model='net-lin',net='alex',use_gpu=True)
     model.eval()
-    inception_model = inception_v3(weights=Inception_V3_Weights.IMAGENET1K_V1, transform_input=False).type(torch.cuda.FloatTensor)
+    inception_model = inception_v3(weights='IMAGENET1K_V1', transform_input=False).type(torch.cuda.FloatTensor)
     inception_model.eval()
 
     avg_ssim, avg_mse, avg_distance = 0.0, 0.0, 0.0
