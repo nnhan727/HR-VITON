@@ -44,7 +44,7 @@ def Evaluation(opt, pred_list, gt_list):
     inception_model.eval()
 
     avg_ssim, avg_mse, avg_distance = 0.0, 0.0, 0.0
-    preds = np.zeros((len(gt_list), 1000))
+    preds = np.zeros((len(pred_list), 1000))
     lpips_list = []
     with torch.no_grad():
         print("Calculate SSIM, MSE, LPIPS...")
@@ -116,11 +116,9 @@ def Evaluation(opt, pred_list, gt_list):
 def main():
     opt = get_opt()
 
-    # Output과 Ground Truth Data
-    pred_list = os.listdir(opt.predict_dir)
-    gt_list = os.listdir(opt.ground_truth_dir)
+    pred_list = [f for f in os.listdir(opt.predict_dir) if f.endswith(('.jpg', '.png'))]
     pred_list.sort()
-    gt_list.sort()
+    gt_list = os.listdir(opt.ground_truth_dir)
 
     avg_ssim, avg_mse, avg_distance, IS_mean, IS_std = Evaluation(opt, pred_list, gt_list)
     print("SSIM : %f / MSE : %f / LPIPS : %f" % (avg_ssim, avg_mse, avg_distance))
