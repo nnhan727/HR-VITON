@@ -81,9 +81,9 @@ def Evaluation(opt, pred_list, gt_list):
 
             print(f"step: {i+1} evaluation... lpips:{lpips_list[-1][1]}")
 
-        avg_ssim /= len(gt_list)
-        avg_mse = avg_mse / len(gt_list)
-        avg_distance = avg_distance / len(gt_list)
+        avg_ssim /= len(pred_list)
+        avg_mse = avg_mse / len(pred_list)
+        avg_distance = avg_distance / len(pred_list)
 
         # Calculate Inception Score
         split_scores = [] # Now compute the mean kl-divergence
@@ -95,7 +95,7 @@ def Evaluation(opt, pred_list, gt_list):
             f.close()
         print("Calculate Inception Score...")
         for k in range(splits):
-            part = preds[k * (len(gt_list) // splits): (k+1) * (len(gt_list) // splits), :]
+            part = preds[k * (len(pred_list) // splits): (k+1) * (len(pred_list) // splits), :]
             py = np.mean(part, axis=0)
             scores = []
             for i in range(part.shape[0]):
