@@ -9,88 +9,92 @@ import numpy as np
 
 import functools
 
+# Tối ưu: tách biệt convolution thành depthwise + pointwise riêng để giảm FLOPs (floating point operations per sec)
+# Thay hết ResBlock và CNN bằng block này, có thể tùy chỉnh scale (up, down, same)
+# CNN cũ: FLOPs = 2 * in_c * out_c * kH * kW * H * W
+# Depthwise + Pointwise: FLOPs = in_c * kH * kW * H * W + in_c * out_c * H * W
+def dw_sep_block(in_c, out_c, scale='same'):
+    stride = 1
+    # hệ số stride: bước nhảy của kernel khi trượt trên ảnh
+    # = 1 khi 'same' and 'up' => ko thay đổi kích thước, chỉ học feature map
+    # = 2 khi 'down' => downsample feature map, giảm kích thước ảnh đi 2 lần
+    if scale == 'down':
+        stride = 2
 
+    layers = [
+        nn.Conv2d(in_c, in_c, 3, stride=stride, padding=1, groups=in_c, bias=False),
+        nn.BatchNorm2d(in_c),
+        nn.ReLU(inplace=True),
+
+        nn.Conv2d(in_c, out_c, 1, bias=False),
+        nn.BatchNorm2d(out_c),
+        nn.ReLU(inplace=True)
+    ]
+
+    if scale == 'up':
+        layers.insert(0, nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True))
+
+    return nn.Sequential(*layers)
 class ConditionGenerator(nn.Module):
     def __init__(self, opt, input1_nc, input2_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d):
         super(ConditionGenerator, self).__init__()
         self.warp_feature = opt.warp_feature
         self.out_layer_opt = opt.out_layer
         
-        self.ClothEncoder = nn.Sequential(
-            ResBlock(input1_nc, ngf, norm_layer=norm_layer, scale='down'),  # 128
-            ResBlock(ngf, ngf * 2, norm_layer=norm_layer, scale='down'),  # 64
-            ResBlock(ngf * 2, ngf * 4, norm_layer=norm_layer, scale='down'),  # 32
-            ResBlock(ngf * 4, ngf * 4, norm_layer=norm_layer, scale='down'),  # 16
-            ResBlock(ngf * 4, ngf * 4, norm_layer=norm_layer, scale='down')  # 8
+        self.ClothEncoder = nn.ModuleList(
+            dw_sep_block(input1_nc, ngf, scale='down'),  # 128
+            dw_sep_block(ngf, ngf * 2, scale='down'),  # 64
+            dw_sep_block(ngf * 2, ngf * 4, scale='down'),  # 32
+            dw_sep_block(ngf * 4, ngf * 4, scale='down'),  # 16
+            dw_sep_block(ngf * 4, ngf * 4, scale='down')  # 8
         )
         
-        self.PoseEncoder = nn.Sequential(
-            ResBlock(input2_nc, ngf, norm_layer=norm_layer, scale='down'),
-            ResBlock(ngf, ngf * 2, norm_layer=norm_layer, scale='down'),
-            ResBlock(ngf * 2, ngf * 4, norm_layer=norm_layer, scale='down'),
-            ResBlock(ngf * 4, ngf * 4, norm_layer=norm_layer, scale='down'),
-            ResBlock(ngf * 4, ngf * 4, norm_layer=norm_layer, scale='down')
+        self.PoseEncoder = nn.ModuleList(
+            dw_sep_block(input2_nc, ngf, scale='down'),  # 128
+            dw_sep_block(ngf, ngf * 2, scale='down'),  # 64
+            dw_sep_block(ngf * 2, ngf * 4, scale='down'),  # 32
+            dw_sep_block(ngf * 4, ngf * 4, scale='down'),  # 16
+            dw_sep_block(ngf * 4, ngf * 4, scale='down')  # 8
         )
         
-        self.conv = ResBlock(ngf * 4, ngf * 8, norm_layer=norm_layer, scale='same')
+        self.conv = dw_sep_block(ngf * 4, ngf * 8)
         
         if opt.warp_feature == 'T1':
             # in_nc -> skip connection + T1, T2 channel
-            self.SegDecoder = nn.Sequential(
-                ResBlock(ngf * 8, ngf * 4, norm_layer=norm_layer, scale='up'),  # 16
-                ResBlock(ngf * 4 * 2 + ngf * 4 , ngf * 4, norm_layer=norm_layer, scale='up'),  # 32
-                ResBlock(ngf * 4 * 2 + ngf * 4 , ngf * 2, norm_layer=norm_layer, scale='up'),  # 64
-                ResBlock(ngf * 2 * 2 + ngf * 4 , ngf, norm_layer=norm_layer, scale='up'),  # 128
-                ResBlock(ngf * 1 * 2 + ngf * 4, ngf, norm_layer=norm_layer, scale='up')  # 256
+            self.SegDecoder = nn.ModuleList(
+                dw_sep_block(ngf * 8, ngf * 4, scale='up'),  # 16
+                dw_sep_block(ngf * 4 * 2 + ngf * 4 , ngf * 4, scale='up'),  # 32
+                dw_sep_block(ngf * 4 * 2 + ngf * 4 , ngf * 2, scale='up'),  # 64
+                dw_sep_block(ngf * 2 * 2 + ngf * 4 , ngf, scale='up'),  # 128
+                dw_sep_block(ngf * 1 * 2 + ngf * 4, ngf, scale='up')  # 256
             )
         if opt.warp_feature == 'encoder':
             # in_nc -> [x, skip_connection, warped_cloth_encoder_feature(E1)]
-            self.SegDecoder = nn.Sequential(
-                ResBlock(ngf * 8, ngf * 4, norm_layer=norm_layer, scale='up'),  # 16
-                ResBlock(ngf * 4 * 3, ngf * 4, norm_layer=norm_layer, scale='up'),  # 32
-                ResBlock(ngf * 4 * 3, ngf * 2, norm_layer=norm_layer, scale='up'),  # 64
-                ResBlock(ngf * 2 * 3, ngf, norm_layer=norm_layer, scale='up'),  # 128
-                ResBlock(ngf * 1 * 3, ngf, norm_layer=norm_layer, scale='up')  # 256
+            self.SegDecoder = nn.ModuleList(
+                dw_sep_block(ngf * 8, ngf * 4, scale='up'),  # 16   
+                dw_sep_block(ngf * 4 * 3 , ngf * 4, scale='up'),  # 32
+                dw_sep_block(ngf * 4 * 3 , ngf * 2, scale='up'),  # 64
+                dw_sep_block(ngf * 2 * 3 , ngf, scale='up'),  # 128
+                dw_sep_block(ngf * 1 * 3 , ngf, scale='up')  # 256
             )
+            
+        in_c = ngf + input1_nc + input2_nc # blend cái skip connection cuối cùng của SegDecoder với input2 (pose) và warped_input1 (cloth)
+        
         if opt.out_layer == 'relu':
-            self.out_layer = ResBlock(ngf + input1_nc + input2_nc, output_nc, norm_layer=norm_layer, scale='same')
-        if opt.out_layer == 'conv':
+                self.out_layer = dw_sep_block(in_c, output_nc)
+        elif opt.out_layer == 'conv':
             self.out_layer = nn.Sequential(
-                ResBlock(ngf + input1_nc + input2_nc, ngf, norm_layer=norm_layer, scale='same'),
-                nn.Conv2d(ngf, output_nc, kernel_size=1, bias=True)
+                dw_sep_block(in_c, ngf),
+                nn.Conv2d(ngf, output_nc, 1)
             )
-        
-        # Cloth Conv 1x1
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(ngf, ngf * 4, kernel_size=1, bias=True),
-            nn.Conv2d(ngf * 2, ngf * 4, kernel_size=1, bias=True),
-            nn.Conv2d(ngf * 4, ngf * 4, kernel_size=1, bias=True),
-            nn.Conv2d(ngf * 4, ngf * 4, kernel_size=1, bias=True),
-        )
-
-        # Person Conv 1x1
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(ngf, ngf * 4, kernel_size=1, bias=True),
-            nn.Conv2d(ngf * 2, ngf * 4, kernel_size=1, bias=True),
-            nn.Conv2d(ngf * 4, ngf * 4, kernel_size=1, bias=True),
-            nn.Conv2d(ngf * 4, ngf * 4, kernel_size=1, bias=True),
-        )
-        
-        self.flow_conv = nn.ModuleList([
-            nn.Conv2d(ngf * 8, 2, kernel_size=3, stride=1, padding=1, bias=True),
-            nn.Conv2d(ngf * 8, 2, kernel_size=3, stride=1, padding=1, bias=True),
-            nn.Conv2d(ngf * 8, 2, kernel_size=3, stride=1, padding=1, bias=True),
-            nn.Conv2d(ngf * 8, 2, kernel_size=3, stride=1, padding=1, bias=True),
-            nn.Conv2d(ngf * 8, 2, kernel_size=3, stride=1, padding=1, bias=True),
-        ]
-        )
-        
-        self.bottleneck = nn.Sequential(
-            nn.Sequential(nn.Conv2d(ngf * 4, ngf * 4, kernel_size=3, stride=1, padding=1, bias=True), nn.ReLU()),
-            nn.Sequential(nn.Conv2d(ngf * 4, ngf * 4, kernel_size=3, stride=1, padding=1, bias=True), nn.ReLU()),
-            nn.Sequential(nn.Conv2d(ngf * 2, ngf * 4, kernel_size=3, stride=1, padding=1, bias=True) , nn.ReLU()),
-            nn.Sequential(nn.Conv2d(ngf, ngf * 4, kernel_size=3, stride=1, padding=1, bias=True), nn.ReLU()),
-        )
+        elif opt.out_layer == 'tanh':
+            self.out_layer = nn.Sequential(
+                dw_sep_block(in_c, ngf),
+                nn.Conv2d(ngf, output_nc, 1),
+                nn.Tanh()
+            )
+        else:
+            self.out_layer = nn.Conv2d(in_c, output_nc, 1)
         
     def normalize(self, x):
         return x
@@ -167,36 +171,34 @@ def make_grid(N, iH, iW,opt):
         grid = torch.cat([grid_x, grid_y], 3)
     return grid
 
+# class ResBlock(nn.Module):
+#     def __init__(self, in_nc, out_nc, scale='down', norm_layer=nn.BatchNorm2d):
+#         super(ResBlock, self).__init__()
+#         use_bias = norm_layer == nn.InstanceNorm2d
+#         assert scale in ['up', 'down', 'same'], "ResBlock scale must be in 'up' 'down' 'same'"
 
-class ResBlock(nn.Module):
-    def __init__(self, in_nc, out_nc, scale='down', norm_layer=nn.BatchNorm2d):
-        super(ResBlock, self).__init__()
-        use_bias = norm_layer == nn.InstanceNorm2d
-        assert scale in ['up', 'down', 'same'], "ResBlock scale must be in 'up' 'down' 'same'"
-
-        if scale == 'same':
-            self.scale = nn.Conv2d(in_nc, out_nc, kernel_size=1, bias=True)
-        if scale == 'up':
-            self.scale = nn.Sequential(
-                nn.Upsample(scale_factor=2, mode='bilinear'),
-                nn.Conv2d(in_nc, out_nc, kernel_size=1,bias=True)
-            )
-        if scale == 'down':
-            self.scale = nn.Conv2d(in_nc, out_nc, kernel_size=3, stride=2, padding=1, bias=use_bias)
+#         if scale == 'same':
+#             self.scale = nn.Conv2d(in_nc, out_nc, kernel_size=1, bias=True)
+#         if scale == 'up':
+#             self.scale = nn.Sequential(
+#                 nn.Upsample(scale_factor=2, mode='bilinear'),
+#                 nn.Conv2d(in_nc, out_nc, kernel_size=1,bias=True)
+#             )
+#         if scale == 'down':
+#             self.scale = nn.Conv2d(in_nc, out_nc, kernel_size=3, stride=2, padding=1, bias=use_bias)
             
-        self.block = nn.Sequential(
-            nn.Conv2d(out_nc, out_nc, kernel_size=3, stride=1, padding=1, bias=use_bias),
-            norm_layer(out_nc),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(out_nc, out_nc, kernel_size=3, stride=1, padding=1, bias=use_bias),
-            norm_layer(out_nc)
-        )
-        self.relu = nn.ReLU(inplace=True)
+#         self.block = nn.Sequential(
+#             nn.Conv2d(out_nc, out_nc, kernel_size=3, stride=1, padding=1, bias=use_bias),
+#             norm_layer(out_nc),
+#             nn.ReLU(inplace=True),
+#             nn.Conv2d(out_nc, out_nc, kernel_size=3, stride=1, padding=1, bias=use_bias),
+#             norm_layer(out_nc)
+#         )
+#         self.relu = nn.ReLU(inplace=True)
 
-    def forward(self, x):
-        residual = self.scale(x)
-        return self.relu(residual + self.block(residual))
-
+#     def forward(self, x):
+#         residual = self.scale(x)
+#         return self.relu(residual + self.block(residual))
 
 class Vgg19(nn.Module):
     def __init__(self, requires_grad=False):

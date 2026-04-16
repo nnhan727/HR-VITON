@@ -5,7 +5,11 @@ from torch.nn import init
 from torch.nn.utils import spectral_norm
 import numpy as np
 
-
+# Note: Đáng lẽ nên thay mấy cái ResBlock trong đây bằng dw_sep_block() luôn nhma:
+# nó cái cơ chế SPADE giữ condition (aka semantic map) khi sinh ảnh ở tất cả các block, 
+# nếu thay bằng dw_sep_block() thì sẽ phá hết cái sự liên kết giữa semantic map và ảnh sinh ra
+# vì vậy, ta giữ nguyên cả file này.
+    
 class BaseNetwork(nn.Module):
     def __init__(self):
         super(BaseNetwork, self).__init__()
@@ -286,8 +290,6 @@ class NLayerDiscriminator(BaseNetwork):
             return results[1:]
         else:
             return results[-1]
-
-
 class MultiscaleDiscriminator(BaseNetwork):
 
     def __init__(self, opt):
