@@ -112,7 +112,7 @@ class ConditionGenerator(nn.Module):
     def normalize(self, x):
         return x
     
-    def forward(self,input1, input2, upsample='bilinear'):
+    def forward(self,opt,input1, input2, upsample='bilinear'):
         E1_list = []
         E2_list = []
         flow_list = []
@@ -130,7 +130,7 @@ class ConditionGenerator(nn.Module):
         # Compute Clothflow
         for i in range(5):
             N, _, iH, iW = E1_list[4 - i].size()
-            grid = make_grid(N, iH, iW,self.use_cuda)
+            grid = make_grid(N, iH, iW,opt)
 
             if i == 0:
                 T1 = E1_list[4 - i]  # (ngf * 4) x 8 x 6
@@ -162,7 +162,7 @@ class ConditionGenerator(nn.Module):
         
  
         N, _, iH, iW = input1.size()
-        grid = make_grid(N, iH, iW,self.use_cuda)
+        grid = make_grid(N, iH, iW,opt)
         
         flow = F.interpolate(flow_list[-1].permute(0, 3, 1, 2), scale_factor=2, mode=upsample).permute(0, 2, 3, 1)
         flow_norm = torch.cat([flow[:, :, :, 0:1] / ((iW/2 - 1.0) / 2.0), flow[:, :, :, 1:2] / ((iH/2 - 1.0) / 2.0)], 3)
@@ -175,10 +175,10 @@ class ConditionGenerator(nn.Module):
 
         return flow_list, x, warped_c, warped_cm
 
-def make_grid(N, iH, iW,use_cuda):
+def make_grid(N, iH, iW,opt):
     grid_x = torch.linspace(-1.0, 1.0, iW).view(1, 1, iW, 1).expand(N, iH, -1, -1)
     grid_y = torch.linspace(-1.0, 1.0, iH).view(1, iH, 1, 1).expand(N, -1, iW, -1)
-    if use_cuda :
+    if opt.cuda :
         grid = torch.cat([grid_x, grid_y], 3).cuda()
     else:
         grid = torch.cat([grid_x, grid_y], 3)
