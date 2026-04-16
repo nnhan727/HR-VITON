@@ -25,11 +25,13 @@ class DepthSepConv2d(nn.Module):
         x = self.conv2(x)
         return x
 
+
 class ConditionGenerator(nn.Module):
     def __init__(self, opt, input1_nc, input2_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d):
         super(ConditionGenerator, self).__init__()
         self.warp_feature = opt.warp_feature
         self.out_layer_opt = opt.out_layer
+        self.use_cuda = opt.cuda
         
         self.ClothEncoder = nn.Sequential(
             ResBlock(input1_nc, ngf, norm_layer=norm_layer, scale='down'),  # 128
@@ -110,7 +112,7 @@ class ConditionGenerator(nn.Module):
     def normalize(self, x):
         return x
     
-    def forward(self,opt,input1, input2, upsample='bilinear'):
+    def forward(self,input1, input2, upsample='bilinear'):
         E1_list = []
         E2_list = []
         flow_list = []
@@ -128,7 +130,7 @@ class ConditionGenerator(nn.Module):
         # Compute Clothflow
         for i in range(5):
             N, _, iH, iW = E1_list[4 - i].size()
-            grid = make_grid(N, iH, iW,opt)
+            grid = make_grid(N, iH, iW,self.use_cuda)
 
             if i == 0:
                 T1 = E1_list[4 - i]  # (ngf * 4) x 8 x 6
@@ -160,7 +162,7 @@ class ConditionGenerator(nn.Module):
         
  
         N, _, iH, iW = input1.size()
-        grid = make_grid(N, iH, iW,opt)
+        grid = make_grid(N, iH, iW,self.use_cuda)
         
         flow = F.interpolate(flow_list[-1].permute(0, 3, 1, 2), scale_factor=2, mode=upsample).permute(0, 2, 3, 1)
         flow_norm = torch.cat([flow[:, :, :, 0:1] / ((iW/2 - 1.0) / 2.0), flow[:, :, :, 1:2] / ((iH/2 - 1.0) / 2.0)], 3)
@@ -173,15 +175,14 @@ class ConditionGenerator(nn.Module):
 
         return flow_list, x, warped_c, warped_cm
 
-def make_grid(N, iH, iW,opt):
+def make_grid(N, iH, iW,use_cuda):
     grid_x = torch.linspace(-1.0, 1.0, iW).view(1, 1, iW, 1).expand(N, iH, -1, -1)
     grid_y = torch.linspace(-1.0, 1.0, iH).view(1, iH, 1, 1).expand(N, -1, iW, -1)
-    if opt.cuda :
+    if use_cuda :
         grid = torch.cat([grid_x, grid_y], 3).cuda()
     else:
         grid = torch.cat([grid_x, grid_y], 3)
     return grid
-
 
 class ResBlock(nn.Module):
     def __init__(self, in_nc, out_nc, scale='down', norm_layer=nn.BatchNorm2d):
@@ -193,7 +194,7 @@ class ResBlock(nn.Module):
             self.scale = nn.Conv2d(in_nc, out_nc, kernel_size=1, bias=True)
         if scale == 'up':
             self.scale = nn.Sequential(
-                nn.Upsample(scale_factor=2, mode='bilinear'),
+                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
                 nn.Conv2d(in_nc, out_nc, kernel_size=1,bias=True)
             )
         if scale == 'down':
@@ -216,7 +217,7 @@ class ResBlock(nn.Module):
 class Vgg19(nn.Module):
     def __init__(self, requires_grad=False):
         super(Vgg19, self).__init__()
-        vgg_pretrained_features = models.vgg19(weights=True).features
+        vgg_pretrained_features = models.vgg19(weights=models.VGG19_Weights.DEFAULT).features
         self.slice1 = torch.nn.Sequential()
         self.slice2 = torch.nn.Sequential()
         self.slice3 = torch.nn.Sequential()
@@ -435,15 +436,17 @@ def load_checkpoint(model, checkpoint_path,opt):
     if not os.path.exists(checkpoint_path):
         print('no checkpoint')
         raise
-    log = model.load_state_dict(torch.load(checkpoint_path), strict=False)
+    log = model.load_state_dict(torch.load(checkpoint_path, weights_only=True), strict=False)
     if opt.cuda :
         model.cuda()
 
 
 def weights_init(m):
     classname = m.__class__.__name__
-    if classname.find('Conv2d') != -1:
+    if classname == 'Conv2d':  # exact match instead of find()
         m.weight.data.normal_(0.0, 0.02)
+        if m.bias is not None:
+            m.bias.data.fill_(0)
     elif classname.find('BatchNorm2d') != -1:
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)
