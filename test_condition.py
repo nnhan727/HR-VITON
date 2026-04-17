@@ -180,9 +180,9 @@ def main():
     else:
         D = None
     # Load Checkpoint
-    load_checkpoint(tocg, opt.tocg_checkpoint)
+    load_checkpoint(tocg, opt.tocg_checkpoint,opt)
     if not opt.D_checkpoint == '' and os.path.exists(opt.D_checkpoint):
-        load_checkpoint(D, opt.D_checkpoint)
+        load_checkpoint(D, opt.D_checkpoint,opt)
     # Train
     test(opt, test_loader, board, tocg, D=D)
 

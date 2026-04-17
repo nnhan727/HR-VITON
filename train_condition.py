@@ -483,7 +483,7 @@ def main():
     
     # Load Checkpoint
     if not opt.tocg_checkpoint == '' and os.path.exists(opt.tocg_checkpoint):
-        load_checkpoint(tocg, opt.tocg_checkpoint)
+        load_checkpoint(tocg, opt.tocg_checkpoint,opt)
 
     # Train
     train(opt, train_loader, val_loader, test_loader, board, tocg, D)
