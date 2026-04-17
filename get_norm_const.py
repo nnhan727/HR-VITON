@@ -51,7 +51,7 @@ def get_opt():
     parser.add_argument('--spectral', action='store_true', help="Apply spectral normalization to D")
 
     parser.add_argument("--test_datasetting", default="unpaired")
-    parser.add_argument("--test_dataroot", default="./data/zalando-hd-resized")
+    parser.add_argument("--test_dataroot", default="./data")
     parser.add_argument("--test_data_list", default="test_pairs.txt")
     
     opt = parser.parse_args()

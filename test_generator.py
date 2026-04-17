@@ -33,7 +33,7 @@ def get_opt():
     parser.add_argument('--cuda',default=False, help='cuda or cpu')
 
     parser.add_argument('--test_name', type=str, default='test', help='test name')
-    parser.add_argument("--dataroot", default="./data/zalando-hd-resized")
+    parser.add_argument("--dataroot", default="./data")
     parser.add_argument("--datamode", default="test")
     parser.add_argument("--data_list", default="test_pairs.txt")
     parser.add_argument("--output_dir", type=str, default="./Output")
@@ -41,7 +41,7 @@ def get_opt():
     parser.add_argument("--fine_width", type=int, default=768)
     parser.add_argument("--fine_height", type=int, default=1024)
 
-    parser.add_argument('--tensorboard_dir', type=str, default='./data/zalando-hd-resized/tensorboard', help='save tensorboard infos')
+    parser.add_argument('--tensorboard_dir', type=str, default='./data/tensorboard', help='save tensorboard infos')
     parser.add_argument('--checkpoint_dir', type=str, default='checkpoints', help='save checkpoint infos')
     parser.add_argument('--tocg_checkpoint', type=str, default='./eval_models/weights/v0.1/mtviton.pth', help='tocg checkpoint')
     parser.add_argument('--gen_checkpoint', type=str, default='./eval_models/weights/v0.1/gen.pth', help='G checkpoint')
