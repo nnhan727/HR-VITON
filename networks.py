@@ -259,6 +259,10 @@ class VGGLoss(nn.Module):
         self.layids = layids
 
     def forward(self, x, y):
+        device = next(self.vgg.parameters()).device
+        x = x.to(device)
+        y = y.to(device)
+        
         x_vgg, y_vgg = self.vgg(x), self.vgg(y)
         loss = 0
         if self.layids is None:
