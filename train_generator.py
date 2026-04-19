@@ -152,10 +152,10 @@ def train(opt, train_loader, test_loader, test_vis_loader, board, tocg, generato
     criterionVGG = VGGLoss(opt).to(device) # Move VGG to device
 
     # optimizer
-    optimizer_gen = torch.optim.Adam(generator.parameters(), lr=opt.G_lr, betas=(0, 0.9))
+    optimizer_gen = torch.optim.Adam(generator.parameters(), lr=opt.G_lr, betas=(0.0, 0.9))
     scheduler_gen = torch.optim.lr_scheduler.LambdaLR(optimizer_gen, lr_lambda=lambda step: 1.0 -
             max(0, step * 1000 + opt.load_step - opt.keep_step) / float(opt.decay_step + 1))
-    optimizer_dis = torch.optim.Adam(discriminator.parameters(), lr=opt.D_lr, betas=(0, 0.9))
+    optimizer_dis = torch.optim.Adam(discriminator.parameters(), lr=opt.D_lr, betas=(0.0, 0.9))
     scheduler_dis = torch.optim.lr_scheduler.LambdaLR(optimizer_dis, lr_lambda=lambda step: 1.0 -
             max(0, step * 1000 + opt.load_step - opt.keep_step) / float(opt.decay_step + 1))
 
