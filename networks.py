@@ -9,21 +9,7 @@ import numpy as np
 
 import functools
 
-
-class DepthSepConv2d(nn.Module):
-    def __init__(self, in_nc, out_nc, kernel_size, stride, padding, bias):
-        super().__init__()
-        # Depthwise: one filter per input channel
-        self.conv1 = nn.Conv2d(in_nc, in_nc, kernel_size=kernel_size, stride=stride,
-                               padding=padding, bias=bias, groups=in_nc)
-        # Pointwise: mix channels with 1x1 conv
-        self.conv2 = nn.Conv2d(in_nc, out_nc, kernel_size=1, stride=1,
-                               padding=0, bias=bias)
-
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.conv2(x)
-        return x
+from utils import DepthSepConv2d
 
 
 class ConditionGenerator(nn.Module):

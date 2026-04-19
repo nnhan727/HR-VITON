@@ -5,11 +5,9 @@ from torch.nn import init
 from torch.nn.utils import spectral_norm
 import numpy as np
 
-# Note: Đáng lẽ nên thay mấy cái ResBlock trong đây bằng dw_sep_block() luôn nhma:
-# nó cái cơ chế SPADE giữ condition (aka semantic map) khi sinh ảnh ở tất cả các block, 
-# nếu thay bằng dw_sep_block() thì sẽ phá hết cái sự liên kết giữa semantic map và ảnh sinh ra
-# vì vậy, ta giữ nguyên cả file này.
-    
+from utils import DepthSepConv2d
+
+
 class BaseNetwork(nn.Module):
     def __init__(self):
         super(BaseNetwork, self).__init__()
@@ -95,12 +93,15 @@ class SPADENorm(nn.Module):
                 "'{}' is not a recognized parameter-free normalization type in SPADENorm".format(param_free_norm_type)
             )
 
-        nhidden = 128
+        nhidden = 64
         ks = 3
         pw = ks // 2
-        self.conv_shared = nn.Sequential(nn.Conv2d(label_nc, nhidden, kernel_size=ks, padding=pw), nn.ReLU())
-        self.conv_gamma = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=pw)
-        self.conv_beta = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=pw)
+        self.conv_shared = nn.Sequential(
+            DepthSepConv2d(label_nc, nhidden, kernel_size=ks, stride=1, padding=pw, bias=True), 
+            nn.ReLU()
+        )
+        self.conv_gamma = DepthSepConv2d(nhidden, norm_nc, kernel_size=ks, stride=1, padding=pw, bias=True)
+        self.conv_beta = DepthSepConv2d(nhidden, norm_nc, kernel_size=ks, stride=1, padding=pw, bias=True)
 
     def forward(self, x, seg, misalign_mask=None):
         # Part 1. Generate parameter-free normalized activations.
