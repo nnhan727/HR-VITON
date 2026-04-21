@@ -30,7 +30,7 @@ def get_opt():
     parser.add_argument('-b', '--batch-size', type=int, default=1)
     parser.add_argument('--fp16', action='store_true', help='use amp')
     # Cuda availability
-    parser.add_argument('--cuda',default=False, help='cuda or cpu')
+    parser.add_argument('--cuda', action='store_true', default=False, help='use cuda (GPU) for inference')
 
     parser.add_argument('--test_name', type=str, default='test', help='test name')
     parser.add_argument("--dataroot", default="./data")
@@ -72,6 +72,16 @@ def get_opt():
                         help="If 'more', adds upsampling layer between the two middle resnet blocks. If 'most', also add one more upsampling + resnet layer at the end of the generator")
 
     opt = parser.parse_args()
+
+    # Auto-enable CUDA if a GPU is available and not explicitly disabled
+    import torch as _torch
+    if _torch.cuda.is_available() and not opt.cuda:
+        opt.cuda = True
+        print(f"[INFO] CUDA detected → forcing opt.cuda=True (GPU: {_torch.cuda.get_device_name(0)})")
+    elif not _torch.cuda.is_available():
+        opt.cuda = False
+        print("[WARN] No CUDA device found → running on CPU")
+
     return opt
 
 def load_checkpoint_G(model, checkpoint_path,opt):
@@ -239,9 +249,18 @@ def test(opt, test_loader, tocg, generator):
 
 
 def main():
+    # Set CUDA device BEFORE torch initialises the CUDA context
+    import sys as _sys
+    _gpu_idx = None
+    for _i, _a in enumerate(_sys.argv):
+        if _a == '--gpu_ids' and _i + 1 < len(_sys.argv):
+            _gpu_idx = _sys.argv[_i + 1]
+    if _gpu_idx is not None:
+        os.environ["CUDA_VISIBLE_DEVICES"] = _gpu_idx
+
     opt = get_opt()
     print(opt)
-    print("Start to test %s!")
+    print("Start to test!")
     os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu_ids
     
     # create test dataset & loader
@@ -263,10 +282,16 @@ def main():
     opt.semantic_nc = 7
     generator = SPADEGenerator(opt, 3+3+3)
     generator.print_network()
-       
+
+    # Move models to GPU before loading checkpoints
+    if opt.cuda:
+        tocg = tocg.cuda()
+        generator = generator.cuda()
+        print("[INFO] Models moved to GPU before checkpoint load")
+
     # Load Checkpoint
-    load_checkpoint(tocg, opt.tocg_checkpoint,opt)
-    load_checkpoint_G(generator, opt.gen_checkpoint,opt)
+    load_checkpoint(tocg, opt.tocg_checkpoint, opt)
+    load_checkpoint_G(generator, opt.gen_checkpoint, opt)
 
     # Train
     test(opt, test_loader, tocg, generator)
